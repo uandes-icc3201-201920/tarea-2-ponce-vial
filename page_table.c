@@ -14,6 +14,7 @@ Make all of your changes to main.c instead.
 #include <fcntl.h>
 #include <stdlib.h>
 #include <ucontext.h>
+#include <signal.h>
 
 #include "page_table.h"
 
