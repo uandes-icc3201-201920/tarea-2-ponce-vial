@@ -10,6 +10,7 @@ how to use the page table and disk interfaces.
 #include "disk.h"
 #include "program.h"
 
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,18 +49,19 @@ void page_fault_handler( struct page_table *pt, int page )
 	}
 
 	
-	int* frame;
-	int* bits;
+	int frame;
+	int bits;
 	printf("tabla de pagina:\n");
 	for (int i=0 ; i<npages; i++){
 		page_table_get_entry(pt,i, &frame, &bits);
-		printf("frame=%d bits=%d\n",frame,bits);
+		printf("i=%d frame=%d bits=%d\n",i,frame,bits);
 	}
 	printf("--------------\n");
 }
 
 int main( int argc, char *argv[] )
 {
+
 	if(argc!=5) {
 		printf("use: virtmem <npages> <nframes> <lru|fifo> <access pattern>\n");
 		return 1;
@@ -69,6 +71,7 @@ int main( int argc, char *argv[] )
 	nframes = atoi(argv[2]);
 	algoritmo = argv[3];
 	const char *program = argv[4];
+	srand48(time(NULL));
 
 	disk = disk_open("myvirtualdisk",npages);
 	if(!disk) {
@@ -119,6 +122,7 @@ int buscar_marco_vacio(){
 	{
 		if(tabla_marcos[i].bits == 0){
 			marco_vacio=i;
+			return marco_vacio;
 		}
 	}
 	return marco_vacio;
@@ -126,10 +130,8 @@ int buscar_marco_vacio(){
 
 void eliminar_pagina(struct page_table *pt, int marco)
 {
-	//set the entry to not be writen; update the frame table to represent that and update the front "pointer"
 	page_table_set_entry(pt, tabla_marcos[marco].page, marco, 0);
 	tabla_marcos[marco].bits = 0;
-	//front=(front+1)%nframes;
 
 }
 
@@ -156,7 +158,7 @@ void algoritmo_rand(struct page_table *pt, int page){
 		if(marco_vacio ==-1){
 
 			//como es RAND, eligir un marco victima al azar y remuevo la pagina asociada a ella en la tabla de paginas
-			marco_vacio = lrand48() % nframes;
+			marco_vacio = (int)lrand48() % nframes;
 
 			//si la pagina del marco victima tiene bit de escritura, entonces hay que guardarlo a disco antes de borrarlo
 			if(tabla_marcos[marco_vacio].bits & PROT_WRITE)
@@ -166,6 +168,7 @@ void algoritmo_rand(struct page_table *pt, int page){
 
 			eliminar_pagina(pt, marco_vacio);
 		}
+
 		//Swap del disco al marco
 		disk_read(disk, page, &physmem[marco_vacio*PAGE_SIZE]);
 	}

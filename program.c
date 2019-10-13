@@ -28,7 +28,6 @@ void access_pattern1( char *data, int length )
 	for (int i = 0; i < length; i++) {	
 		data[i]=0;
 	}
-	// TODO: Implementar
 }
 
 void access_pattern2( char *data, int length )
