@@ -44,21 +44,18 @@ void page_fault_handler( struct page_table *pt, int page )
 	//FIFO
 	else if(!strcmp("fifo",algoritmo))
 	{
-		//fifo_fault_handler(pt, page);
+		algoritmo_fifo(pt, page);
 	}
 
 	
-	/*int* frame;
+	int* frame;
 	int* bits;
 	printf("tabla de pagina:\n");
-	for (int i=0 ; i<10; i++){
+	for (int i=0 ; i<npages; i++){
 		page_table_get_entry(pt,i, &frame, &bits);
 		printf("frame=%d bits=%d\n",frame,bits);
 	}
 	printf("--------------\n");
-	printf("page fault on page #%d\n",page);
-	page_table_set_entry(pt,page,page,PROT_WRITE);
-	//exit(1);*/
 }
 
 int main( int argc, char *argv[] )
@@ -142,34 +139,49 @@ void algoritmo_rand(struct page_table *pt, int page){
 	int frame;
 	int bits;
 	page_table_get_entry(pt, page, &frame, &bits);
-
-	printf("frame=%d bits=%d\n",frame,bits);
+	
+	int marco_vacio;
+	//printf("frame=%d bits=%d\n",frame,bits);
 
 	//Falta de pagina por no tener marco disponible (bits es 0)
 	if (bits==0){
 
 		//Primero se busca un marco vacio
-		int marco_vacio=buscar_marco_vacio();
-		
+		marco_vacio=buscar_marco_vacio();
+
+		//SE cambia el bit de 0 a Read
+		bits = PROT_READ;
+
 		//Si es -1, entonces no hay marco vacio y hay que reemplazar
 		if(marco_vacio ==-1){
 
 			//como es RAND, eligir un marco victima al azar y remuevo la pagina asociada a ella en la tabla de paginas
-			int marco_victima = lrand48() % nframes;
+			marco_vacio = lrand48() % nframes;
 
 			//si la pagina del marco victima tiene bit de escritura, entonces hay que guardarlo a disco antes de borrarlo
-			if(tabla_marcos[marco_victima].bits & PROT_WRITE)
+			if(tabla_marcos[marco_vacio].bits & PROT_WRITE)
 			{
-				disk_write(disk, tabla_marcos[marco_victima].page, &physmem[marco_victima *PAGE_SIZE]);
+				disk_write(disk, tabla_marcos[marco_vacio].page, &physmem[marco_vacio *PAGE_SIZE]);
 			}
 
-			eliminar_pagina(pt, marco_victima);
+			eliminar_pagina(pt, marco_vacio);
 		}
-		
-		
+		//Swap del disco al marco
+		disk_read(disk, page, &physmem[marco_vacio*PAGE_SIZE]);
 	}
+	//si los bits son de lectura, cambiar a escritura/lectura
+	else if (bits & PROT_READ){
+		bits = PROT_READ | PROT_WRITE;
+		marco_vacio = frame;
+	}
+	//Actualizar la tabla de pagina
+	page_table_set_entry(pt, page, marco_vacio, bits);
 
+	//actualizar la tabla de marcos
+	tabla_marcos[marco_vacio].bits = bits; 
+	tabla_marcos[marco_vacio].page = page;
+}
+
+void algoritmo_fifo(struct page_table *pt, int page){
 	
-
-	 
 }
