@@ -9,8 +9,7 @@ how to use the page table and disk interfaces.
 #include "page_table.h"
 #include "disk.h"
 #include "program.h"
-
-#include <time.h>
+#include <queue> 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +21,7 @@ int nframes;
 int npages;
 char* virtmem = NULL;
 char* physmem = NULL;
+queue<int> fifo; //Queue para FIFO
 
 void algoritmo_rand(struct page_table *pt, int page);
 
@@ -49,19 +49,18 @@ void page_fault_handler( struct page_table *pt, int page )
 	}
 
 	
-	int frame;
-	int bits;
+	int* frame;
+	int* bits;
 	printf("tabla de pagina:\n");
 	for (int i=0 ; i<npages; i++){
 		page_table_get_entry(pt,i, &frame, &bits);
-		printf("i=%d frame=%d bits=%d\n",i,frame,bits);
+		printf("frame=%d bits=%d\n",frame,bits);
 	}
 	printf("--------------\n");
 }
 
 int main( int argc, char *argv[] )
 {
-
 	if(argc!=5) {
 		printf("use: virtmem <npages> <nframes> <lru|fifo> <access pattern>\n");
 		return 1;
@@ -71,7 +70,6 @@ int main( int argc, char *argv[] )
 	nframes = atoi(argv[2]);
 	algoritmo = argv[3];
 	const char *program = argv[4];
-	srand48(time(NULL));
 
 	disk = disk_open("myvirtualdisk",npages);
 	if(!disk) {
@@ -122,6 +120,7 @@ int buscar_marco_vacio(){
 	{
 		if(tabla_marcos[i].bits == 0){
 			marco_vacio=i;
+			fifo.push(marco_vacio); //Se llena la queue de FIFO
 			return marco_vacio;
 		}
 	}
@@ -130,8 +129,10 @@ int buscar_marco_vacio(){
 
 void eliminar_pagina(struct page_table *pt, int marco)
 {
+
 	page_table_set_entry(pt, tabla_marcos[marco].page, marco, 0);
 	tabla_marcos[marco].bits = 0;
+	//front=(front+1)%nframes;
 
 }
 
@@ -168,7 +169,6 @@ void algoritmo_rand(struct page_table *pt, int page){
 
 			eliminar_pagina(pt, marco_vacio);
 		}
-
 		//Swap del disco al marco
 		disk_read(disk, page, &physmem[marco_vacio*PAGE_SIZE]);
 	}
@@ -185,6 +185,41 @@ void algoritmo_rand(struct page_table *pt, int page){
 	tabla_marcos[marco_vacio].page = page;
 }
 
-void algoritmo_fifo(struct page_table *pt, int page){
-	
+void algoritmo_fifo(struct page_table *pt, int page)
+{
+	int frame;
+	int bits;
+	page_table_get_entry(pt, page, &frame, &bits);
+	int marco_vacio;
+	if (bits==0)
+	{
+
+		//Se busca un marco vacio
+		marco_vacio=buscar_marco_vacio();
+
+		//SE cambia el bit de 0 a Read
+		bits = PROT_READ;
+
+		//Si es -1, entonces no hay marco vacio y hay que reemplazar
+		if(marco_vacio ==-1)
+		{	
+			int primer_marco_queue = fifo.pop();//Retorna el primer marco utilizado 		
+			eliminar_pagina(pt, primer_marco_queue);//Vacia el primer marco utilizado
+		}
+		//Swap del disco al marco
+		disk_read(disk, page, &physmem[marco_vacio*PAGE_SIZE]);
+	}
+
+	//si los bits son de lectura, cambiar a escritura/lectura
+	else if (bits & PROT_READ)
+	{
+		bits = PROT_READ | PROT_WRITE;
+		marco_vacio = frame;
+	}
+	//Actualizar la tabla de pagina
+	page_table_set_entry(pt, page, marco_vacio, bits);
+
+	//actualizar la tabla de marcos
+	tabla_marcos[marco_vacio].bits = bits; 
+	tabla_marcos[marco_vacio].page = page;
 }
