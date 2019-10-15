@@ -9,7 +9,6 @@ how to use the page table and disk interfaces.
 #include "page_table.h"
 #include "disk.h"
 #include "program.h"
-#include <queue> 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,7 +20,12 @@ int nframes;
 int npages;
 char* virtmem = NULL;
 char* physmem = NULL;
-queue<int> fifo; //Queue para FIFO
+
+//FIFO
+
+int inicio_queue = 0;
+int final_queue = 0;
+int*fifo_queue;
 
 void algoritmo_rand(struct page_table *pt, int page);
 
@@ -86,6 +90,8 @@ int main( int argc, char *argv[] )
 
 	//Le asigno el tamaño a la tabla de marcos
 	tabla_marcos= malloc(nframes * sizeof(entrada_tabla_marcos));
+	//Se crea un array del tamaño de la cantidad de marcos existentes para guardarlos y simular un queue
+	fifo_queue = malloc (nframes * sizeof(int));
 
 	virtmem = page_table_get_virtmem(pt);
 
@@ -108,32 +114,9 @@ int main( int argc, char *argv[] )
 	page_table_delete(pt);
 	disk_close(disk);
 	free(tabla_marcos);
+	free(fifo_queue);
 
 	return 0;
-}
-
-//Funcion para buscar marco vacio en la tabla de marcos, sino hay retorna -1
-int buscar_marco_vacio(){
-	int marco_vacio;
-	marco_vacio=-1;
-	for(int i= 0; i<nframes; i++)
-	{
-		if(tabla_marcos[i].bits == 0){
-			marco_vacio=i;
-			fifo.push(marco_vacio); //Se llena la queue de FIFO
-			return marco_vacio;
-		}
-	}
-	return marco_vacio;
-}
-
-void eliminar_pagina(struct page_table *pt, int marco)
-{
-
-	page_table_set_entry(pt, tabla_marcos[marco].page, marco, 0);
-	tabla_marcos[marco].bits = 0;
-	//front=(front+1)%nframes;
-
 }
 
 void algoritmo_rand(struct page_table *pt, int page){
@@ -149,9 +132,15 @@ void algoritmo_rand(struct page_table *pt, int page){
 	//Falta de pagina por no tener marco disponible (bits es 0)
 	if (bits==0){
 
-		//Primero se busca un marco vacio
-		marco_vacio=buscar_marco_vacio();
-
+		//Se busca un marco vacio
+		marco_vacio=-1;
+		for(int i= 0; i<nframes; i++)
+		{
+			if(tabla_marcos[i].bits == 0){
+				marco_vacio=i; //Si hay un marco disponible, se le asigna a marco_vacio
+				break;
+			}
+		}
 		//SE cambia el bit de 0 a Read
 		bits = PROT_READ;
 
@@ -166,8 +155,9 @@ void algoritmo_rand(struct page_table *pt, int page){
 			{
 				disk_write(disk, tabla_marcos[marco_vacio].page, &physmem[marco_vacio *PAGE_SIZE]);
 			}
-
-			eliminar_pagina(pt, marco_vacio);
+			//Se elimina la pagina
+			page_table_set_entry(pt, tabla_marcos[marco_vacio].page, marco_vacio, 0);
+			tabla_marcos[marco_vacio].bits = 0;
 		}
 		//Swap del disco al marco
 		disk_read(disk, page, &physmem[marco_vacio*PAGE_SIZE]);
@@ -187,39 +177,61 @@ void algoritmo_rand(struct page_table *pt, int page){
 
 void algoritmo_fifo(struct page_table *pt, int page)
 {
-	int frame;
+	int frame;//Marco 
 	int bits;
+
 	page_table_get_entry(pt, page, &frame, &bits);
+
 	int marco_vacio;
-	if (bits==0)
-	{
-
+	
+	//Si el bit es 0, es porque todavia no está asignado a una pagina
+	if(bits == 0)
+	{ 
+	
 		//Se busca un marco vacio
-		marco_vacio=buscar_marco_vacio();
-
-		//SE cambia el bit de 0 a Read
-		bits = PROT_READ;
-
-		//Si es -1, entonces no hay marco vacio y hay que reemplazar
-		if(marco_vacio ==-1)
-		{	
-			int primer_marco_queue = fifo.pop();//Retorna el primer marco utilizado 		
-			eliminar_pagina(pt, primer_marco_queue);//Vacia el primer marco utilizado
+		marco_vacio=-1;
+		for(int i= 0; i<nframes; i++)
+		{
+			if(tabla_marcos[i].bits == 0){
+				marco_vacio=i; //Si hay un marco disponible, se le asigna a marco_vacio
+				break;
+			}
 		}
-		//Swap del disco al marco
-		disk_read(disk, page, &physmem[marco_vacio*PAGE_SIZE]);
-	}
 
-	//si los bits son de lectura, cambiar a escritura/lectura
-	else if (bits & PROT_READ)
+		//Se cambia el bit 0 a un bit de escritura
+		bits = PROT_READ;
+		
+
+		//Si marco_vacio = -1 no existe un marco vacio, por lo tanto se debe liberar el primer marco dentro de la "queue" de marcos
+		if(marco_vacio == -1)
+		{
+			
+			
+			//Se toma el primer marco de la queue de marcos, y se libera con eliminar pagina
+			marco_vacio = fifo_queue[inicio_queue];
+			//Se elimina la pagina
+			page_table_set_entry(pt, tabla_marcos[marco_vacio].page, marco_vacio, 0);
+			tabla_marcos[marco_vacio].bits = 0;
+			//Se cambia el valor del inicio, por el siguiente dentro del array
+			inicio_queue=(inicio_queue+1)%nframes;
+		}
+		disk_read(disk, page, &physmem[marco_vacio*PAGE_SIZE]);
+		//Se asigna el nuevo marco, al final de la queue y se le suma 1 a la variable final_queue
+		fifo_queue[final_queue]=marco_vacio;
+		final_queue =(final_queue +1) % nframes;
+
+	}
+	//if bits are prot_read set it so that it is dirty
+	else if(bits & PROT_READ)
 	{
+		//give write priveledges and set fIndex to the frame returned as it will write to the same frame
 		bits = PROT_READ | PROT_WRITE;
 		marco_vacio = frame;
-	}
-	//Actualizar la tabla de pagina
+	} 
+	
 	page_table_set_entry(pt, page, marco_vacio, bits);
 
-	//actualizar la tabla de marcos
-	tabla_marcos[marco_vacio].bits = bits; 
+	//Update frame table used to track
 	tabla_marcos[marco_vacio].page = page;
+	tabla_marcos[marco_vacio].bits = bits;
 }
