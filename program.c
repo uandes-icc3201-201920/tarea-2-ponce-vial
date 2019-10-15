@@ -41,7 +41,13 @@ void access_pattern2( char *data, int length )
 	}
 }
 
-void access_pattern3( char *cdata, int length )
+void access_pattern3(char *data, int length )
 {
-	// TODO: Implementar
+	for (int i = 0; i < length; i++)
+	{
+		if(i%2 == 0)
+		{
+			data[i] = 1;
+		}
+	}
 }
