@@ -221,17 +221,15 @@ void algoritmo_fifo(struct page_table *pt, int page)
 		final_queue =(final_queue +1) % nframes;
 
 	}
-	//if bits are prot_read set it so that it is dirty
 	else if(bits & PROT_READ)
 	{
-		//give write priveledges and set fIndex to the frame returned as it will write to the same frame
+		
 		bits = PROT_READ | PROT_WRITE;
 		marco_vacio = frame;
 	} 
 	
 	page_table_set_entry(pt, page, marco_vacio, bits);
 
-	//Update frame table used to track
 	tabla_marcos[marco_vacio].page = page;
 	tabla_marcos[marco_vacio].bits = bits;
 }
