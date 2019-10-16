@@ -25,11 +25,10 @@ int cant_lecturas_disco=0;
 int cant_escrituras_disco=0;
 int cant_faltas=0;
 
-//FIFO
-
+//Variables para el algoritmo fifo(array(queue),inicio del array,final del array)
+int*fifo_queue;
 int inicio_queue = 0;
 int final_queue = 0;
-int*fifo_queue;
 
 void algoritmo_rand(struct page_table *pt, int page);
 void algoritmo_fifo(struct page_table *pt, int page);
@@ -223,10 +222,11 @@ void algoritmo_fifo(struct page_table *pt, int page)
 		//Si marco_vacio = -1 no existe un marco vacio, por lo tanto se debe liberar el primer marco dentro de la "queue" de marcos
 		if(marco_vacio == -1)
 		{
-			
-			
 			//Se toma el primer marco de la queue de marcos, y se libera con eliminar pagina
 			marco_vacio = fifo_queue[inicio_queue];
+			//Se escribe en el disco
+			disk_write(disk, tabla_marcos[marco_vacio].page, &physmem[marco_vacio *PAGE_SIZE]);
+			cant_escrituras_disco++;
 			//Se elimina la pagina
 			page_table_set_entry(pt, tabla_marcos[marco_vacio].page, marco_vacio, 0);
 			tabla_marcos[marco_vacio].bits = 0;
@@ -240,15 +240,16 @@ void algoritmo_fifo(struct page_table *pt, int page)
 		final_queue =(final_queue +1) % nframes;
 
 	}
+	//si los bits son de lectura, cambiar a escritura/lectura
 	else if(bits & PROT_READ)
 	{
 		
 		bits = PROT_READ | PROT_WRITE;
 		marco_vacio = frame;
 	} 
-	
+	//Se actualiza la tabla de pagina
 	page_table_set_entry(pt, page, marco_vacio, bits);
-
+	//Se actualiza la tabla de marcos
 	tabla_marcos[marco_vacio].page = page;
 	tabla_marcos[marco_vacio].bits = bits;
 }
