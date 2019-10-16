@@ -13,6 +13,7 @@ how to use the page table and disk interfaces.
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 struct disk* disk = NULL;
 char* algoritmo;
@@ -20,6 +21,9 @@ int nframes;
 int npages;
 char* virtmem = NULL;
 char* physmem = NULL;
+int cant_lecturas_disco=0;
+int cant_escrituras_disco=0;
+int cant_faltas=0;
 
 //FIFO
 
@@ -28,6 +32,7 @@ int final_queue = 0;
 int*fifo_queue;
 
 void algoritmo_rand(struct page_table *pt, int page);
+void algoritmo_fifo(struct page_table *pt, int page);
 
 typedef struct{
 	int page;
@@ -40,6 +45,7 @@ entrada_tabla_marcos* tabla_marcos;
 
 void page_fault_handler( struct page_table *pt, int page )
 {
+	cant_faltas++;
 	//RAND
 	if(!strcmp("rand",algoritmo))
 	{
@@ -53,8 +59,8 @@ void page_fault_handler( struct page_table *pt, int page )
 	}
 
 	
-	int* frame;
-	int* bits;
+	int frame;
+	int bits;
 	printf("tabla de pagina:\n");
 	for (int i=0 ; i<npages; i++){
 		page_table_get_entry(pt,i, &frame, &bits);
@@ -65,6 +71,8 @@ void page_fault_handler( struct page_table *pt, int page )
 
 int main( int argc, char *argv[] )
 {
+	srand48 (time(0));
+	
 	if(argc!=5) {
 		printf("use: virtmem <npages> <nframes> <lru|fifo> <access pattern>\n");
 		return 1;
@@ -116,12 +124,20 @@ int main( int argc, char *argv[] )
 	free(tabla_marcos);
 	free(fifo_queue);
 
+	printf("Algortimo utilizado: %s\n", argv[3]);
+	printf("Cantidad de paginas: %d\n",npages);
+	printf("Cantidad de marcos: %d\n",nframes);
+	
+	printf("\n-----------Resumen----------\n");
+	printf("Cantidad de faltas de pagina: %d\n",cant_faltas);
+	printf("Cantidad de lecturas en disco: %d\n",cant_lecturas_disco);
+	printf("Cantidad de escrituras a disco: %d\n",cant_escrituras_disco);
 	return 0;
 }
 
 void algoritmo_rand(struct page_table *pt, int page){
 
-	printf("page fault on page #%d\n",page);
+	//printf("page fault on page #%d\n",page);
 	int frame;
 	int bits;
 	page_table_get_entry(pt, page, &frame, &bits);
@@ -154,6 +170,7 @@ void algoritmo_rand(struct page_table *pt, int page){
 			if(tabla_marcos[marco_vacio].bits & PROT_WRITE)
 			{
 				disk_write(disk, tabla_marcos[marco_vacio].page, &physmem[marco_vacio *PAGE_SIZE]);
+				cant_escrituras_disco++;
 			}
 			//Se elimina la pagina
 			page_table_set_entry(pt, tabla_marcos[marco_vacio].page, marco_vacio, 0);
@@ -161,6 +178,7 @@ void algoritmo_rand(struct page_table *pt, int page){
 		}
 		//Swap del disco al marco
 		disk_read(disk, page, &physmem[marco_vacio*PAGE_SIZE]);
+		cant_lecturas_disco++;
 	}
 	//si los bits son de lectura, cambiar a escritura/lectura
 	else if (bits & PROT_READ){
@@ -216,6 +234,7 @@ void algoritmo_fifo(struct page_table *pt, int page)
 			inicio_queue=(inicio_queue+1)%nframes;
 		}
 		disk_read(disk, page, &physmem[marco_vacio*PAGE_SIZE]);
+		cant_lecturas_disco++;
 		//Se asigna el nuevo marco, al final de la queue y se le suma 1 a la variable final_queue
 		fifo_queue[final_queue]=marco_vacio;
 		final_queue =(final_queue +1) % nframes;
