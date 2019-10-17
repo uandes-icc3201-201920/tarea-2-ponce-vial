@@ -58,14 +58,14 @@ void page_fault_handler( struct page_table *pt, int page )
 	}
 
 	
-	int frame;
+	/*int frame;
 	int bits;
 	printf("tabla de pagina:\n");
 	for (int i=0 ; i<npages; i++){
 		page_table_get_entry(pt,i, &frame, &bits);
 		printf("frame=%d bits=%d\n",frame,bits);
 	}
-	printf("--------------\n");
+	printf("--------------\n");*/
 }
 
 int main( int argc, char *argv[] )
@@ -140,33 +140,32 @@ void algoritmo_rand(struct page_table *pt, int page){
 	int frame;
 	int bits;
 	page_table_get_entry(pt, page, &frame, &bits);
-	
+
 	int marco_vacio;
 	//printf("frame=%d bits=%d\n",frame,bits);
 
 	//Falta de pagina por no tener marco disponible (bits es 0)
 	if (bits==0){
 
+		bits = PROT_READ;
 		//Se busca un marco vacio
 		marco_vacio=-1;
-		for(int i= 0; i<nframes; i++)
-		{
+		for(int i= 0; i<nframes; i++){
+
 			if(tabla_marcos[i].bits == 0){
 				marco_vacio=i; //Si hay un marco disponible, se le asigna a marco_vacio
 				break;
 			}
 		}
-		//SE cambia el bit de 0 a Read
-		bits = PROT_READ;
 
 		//Si es -1, entonces no hay marco vacio y hay que reemplazar
 		if(marco_vacio ==-1){
 
 			//como es RAND, eligir un marco victima al azar y remuevo la pagina asociada a ella en la tabla de paginas
-			marco_vacio = (int)lrand48() % nframes;
+			marco_vacio = lrand48() % nframes;
 
-			//si la pagina del marco victima tiene bit de escritura, entonces hay que guardarlo a disco antes de borrarlo
-			if(tabla_marcos[marco_vacio].bits & PROT_WRITE)
+			//si la pagina del marco victima tiene un bit de escritura, entonces hay que guardarlo a disco antes de borrarlo
+			if(tabla_marcos[marco_vacio].bits == PROT_WRITE || tabla_marcos[marco_vacio].bits == (PROT_READ|PROT_WRITE))
 			{
 				disk_write(disk, tabla_marcos[marco_vacio].page, &physmem[marco_vacio *PAGE_SIZE]);
 				cant_escrituras_disco++;
@@ -180,7 +179,7 @@ void algoritmo_rand(struct page_table *pt, int page){
 		cant_lecturas_disco++;
 	}
 	//si los bits son de lectura, cambiar a escritura/lectura
-	else if (bits & PROT_READ){
+	else if (bits == PROT_READ){
 		bits = PROT_READ | PROT_WRITE;
 		marco_vacio = frame;
 	}
@@ -195,7 +194,7 @@ void algoritmo_rand(struct page_table *pt, int page){
 void algoritmo_fifo(struct page_table *pt, int page)
 {
 	int frame;//Marco 
-	int bits;
+	int bits;//Permiso
 
 	page_table_get_entry(pt, page, &frame, &bits);
 
@@ -241,7 +240,7 @@ void algoritmo_fifo(struct page_table *pt, int page)
 
 	}
 	//si los bits son de lectura, cambiar a escritura/lectura
-	else if(bits & PROT_READ)
+	else if(bits == PROT_READ)
 	{
 		
 		bits = PROT_READ | PROT_WRITE;
