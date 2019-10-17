@@ -42,18 +42,14 @@ void access_pattern2( char *data, int length )
 
 void access_pattern3(char *data, int length )
 {
-	for (int i = 0; i < length; i++)
+	for (int i = 0; i < length/2; i++)
 	{
-		if(i%2 == 0)
-		{
-			data[i] = 1;
-		}
+		data[i] = 0;		
 	}
-	for (int i = 0; i < length; i++)
+	for (int i = length/2; i < length; i++)
 	{
-		if(i%3 == 0)
-		{
-			data[i] = 1;
-		}
+		int indice=lrand48() % length/2;
+		data[indice]=1;
 	}
+
 }
