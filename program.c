@@ -10,7 +10,7 @@ Make all of your changes to main.c instead.
 #include <stdlib.h>
 
 
-/*static int compare_bytes( const void *pa, const void *pb )
+static int compare_bytes( const void *pa, const void *pb )
 {
 	int a = *(char*)pa;
 	int b = *(char*)pb;
@@ -23,16 +23,12 @@ Make all of your changes to main.c instead.
 		return 1;
 	}
 
-}*/
+}
 
 void access_pattern1( char *data, int length )
 {
 	for (int i = 0; i < length; i++) {	
 		data[i]=0;
-	}
-
-	for (int i = 0; i < length; i++) {	
-		data[i]=1;
 	}
 }
 
@@ -40,7 +36,6 @@ void access_pattern2( char *data, int length )
 {
 	for (int i = 0; i < ((length/PAGE_SIZE)/2); i++) {	
 		int indice=lrand48() % length;
-		//printf("%d\n", indice/PAGE_SIZE);
 		data[indice]=1;
 	}
 }
@@ -50,6 +45,13 @@ void access_pattern3(char *data, int length )
 	for (int i = 0; i < length; i++)
 	{
 		if(i%2 == 0)
+		{
+			data[i] = 1;
+		}
+	}
+	for (int i = 0; i < length; i++)
+	{
+		if(i%3 == 0)
 		{
 			data[i] = 1;
 		}
