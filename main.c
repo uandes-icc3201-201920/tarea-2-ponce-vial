@@ -223,9 +223,12 @@ void algoritmo_fifo(struct page_table *pt, int page)
 		{
 			//Se toma el primer marco de la queue de marcos, y se libera con eliminar pagina
 			marco_vacio = fifo_queue[inicio_queue];
-			//Se escribe en el disco
-			disk_write(disk, tabla_marcos[marco_vacio].page, &physmem[marco_vacio *PAGE_SIZE]);
-			cant_escrituras_disco++;
+			//Se escribe en el disco si el bit es de escritura
+			if(tabla_marcos[marco_vacio].bits == PROT_WRITE || tabla_marcos[marco_vacio].bits == (PROT_READ|PROT_WRITE))
+			{
+				disk_write(disk, tabla_marcos[marco_vacio].page, &physmem[marco_vacio *PAGE_SIZE]);
+				cant_escrituras_disco++;
+			}
 			//Se elimina la pagina
 			page_table_set_entry(pt, tabla_marcos[marco_vacio].page, marco_vacio, 0);
 			tabla_marcos[marco_vacio].bits = 0;
